@@ -177,6 +177,13 @@ foreach i = {1-31} in
 def FeatureSaveRestore : SubtargetFeature<"save-restore", "EnableSaveRestore",
                                           "true", "Enable save/restore.">;
 
+def FeaturePulp : SubtargetFeature<"pulp", "HasNonStdExtPulp", "true",
+                                    "'pulp' (non-standard extension)">;
+def HasNonStdExtPulp : Predicate<"Subtarget->hasNonStdExtPulp()">,
+                        AssemblerPredicate<(all_of FeaturePulp),
+                        "pulp Instruction Set">;
+
+
 //===----------------------------------------------------------------------===//
 // Named operands for CSR instructions.
 //===----------------------------------------------------------------------===//
