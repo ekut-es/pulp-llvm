@@ -177,7 +177,7 @@ foreach i = {1-31} in
 def FeatureSaveRestore : SubtargetFeature<"save-restore", "EnableSaveRestore",
                                           "true", "Enable save/restore.">;
 
-def FeaturePulp : SubtargetFeature<"pulp", "HasNonStdExtPulp", "true",
+def FeaturePulp : SubtargetFeature<"xpulpv", "HasNonStdExtPulp", "true",
                                     "'pulp' (non-standard extension)">;
 def HasNonStdExtPulp : Predicate<"Subtarget->hasNonStdExtPulp()">,
                         AssemblerPredicate<(all_of FeaturePulp),

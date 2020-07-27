@@ -65,12 +65,22 @@ isExperimentalExtension(StringRef Ext) {
   return None;
 }
 
+static Optional<RISCVExtensionVersion>
+isNonStandardExtension(StringRef Ext) {
+  if (Ext == "xpulpv")
+    return RISCVExtensionVersion{"2", ""};
+  return None;
+}
+
 static bool isSupportedExtension(StringRef Ext) {
   // LLVM supports "z" extensions which are marked as experimental.
   if (isExperimentalExtension(Ext))
     return true;
+  
+  if(isNonStandardExtension(Ext))
+    return true;
 
-  // LLVM does not support "sx", "s" nor "x" extensions.
+  // LLVM does not support "sx" nor "s" extensions.
   return false;
 }
 
@@ -99,28 +109,35 @@ static bool getExtensionVersion(const Driver &D, const ArgList &Args,
     }
   }
 
-  // If experimental extension, require use of current version number number
-  if (auto ExperimentalExtension = isExperimentalExtension(Ext)) {
+  auto OptionalSupportedVers = isExperimentalExtension(Ext);
+  if (OptionalSupportedVers) {
     if (!Args.hasArg(options::OPT_menable_experimental_extensions)) {
       std::string Error =
           "requires '-menable-experimental-extensions' for experimental extension";
       D.Diag(diag::err_drv_invalid_riscv_ext_arch_name)
           << MArch << Error << Ext;
       return false;
-    } else if (Major.empty() && Minor.empty()) {
+    }
+  } else {
+    OptionalSupportedVers = isNonStandardExtension(Ext);
+  }
+
+  // If experimental or non-standard extension, require use of current version number number
+  if (OptionalSupportedVers) {
+    if (Major.empty() && Minor.empty()) {
       std::string Error =
-          "experimental extension requires explicit version number";
+          "experimental or non-standard extension requires explicit version number";
       D.Diag(diag::err_drv_invalid_riscv_ext_arch_name)
           << MArch << Error << Ext;
       return false;
     }
-    auto SupportedVers = *ExperimentalExtension;
+    auto SupportedVers = *OptionalSupportedVers;
     if (Major != SupportedVers.Major || Minor != SupportedVers.Minor) {
       std::string Error =
           "unsupported version number " + Major;
       if (!Minor.empty())
         Error += "." + Minor;
-      Error += " for experimental extension (this compiler supports "
+      Error += " for experimental or non-standard extension (this compiler supports "
             + SupportedVers.Major.str() + "."
             + SupportedVers.Minor.str() + ")";
 
@@ -130,6 +147,7 @@ static bool getExtensionVersion(const Driver &D, const ArgList &Args,
     }
     return true;
   }
+  
 
   // Allow extensions to declare no version number
   if (Major.empty() && Minor.empty())
