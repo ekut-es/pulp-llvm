@@ -310,6 +310,16 @@ namespace clang {
     };
   }
 
+  /// RISCV builtins
+  namespace RISCV {
+    enum {
+      LastTIBuiltin = clang::Builtin::FirstTSBuiltin-1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsRISCV.def"
+      LastTSBuiltin
+    };
+  }
+
   static constexpr uint64_t LargestBuiltinID = std::max<uint64_t>(
       {NEON::FirstTSBuiltin, ARM::LastTSBuiltin, SVE::FirstTSBuiltin,
        AArch64::LastTSBuiltin, BPF::LastTSBuiltin, PPC::LastTSBuiltin,
