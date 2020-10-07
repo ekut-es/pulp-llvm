@@ -417,6 +417,7 @@ unsigned RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 bool RISCVInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
   assert((Cond.size() == 3) && "Invalid branch condition!");
+  if (Cond[0].getImm() == RISCV::LoopBranch) return true;
   Cond[0].setImm(getOppositeBranchOpcode(Cond[0].getImm()));
   return false;
 }
@@ -447,6 +448,8 @@ bool RISCVInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
   case RISCV::JAL:
   case RISCV::PseudoBR:
     return isIntN(21, BrOffset);
+  case RISCV::LoopBranch:
+    return true;
   }
 }
 

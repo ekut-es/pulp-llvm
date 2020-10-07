@@ -81,6 +81,8 @@ enum Fixups {
   // which indicates the linker should fixup the alignment after linker
   // relaxation.
   fixup_riscv_align,
+  fixup_riscv_loop_setup_5,
+  fixup_riscv_loop_setup_12,
 
   // fixup_riscv_invalid - used as a sentinel and a marker, must be last fixup
   fixup_riscv_invalid,

@@ -505,6 +505,19 @@ def uimm13_lsb0 : Operand<OtherVT>,
   }];
 }
 
+def uimm6_lsb0 : Operand<OtherVT>,
+                  ImmLeaf<XLenVT, [{return isShiftedUInt<5, 1>(Imm);}]>  {
+  let ParserMatchClass = UImmAsmOperand<6, "Lsb0">;
+  let EncoderMethod = "getImmOpValueAsr1";
+  let DecoderMethod = "decodeUImmOperand<13>";
+  let MCOperandPredicate = [{
+    int64_t Imm;
+    if (MCOp.evaluateAsConstantImm(Imm))
+      return isShiftedInt<5, 1>(Imm);
+    return MCOp.isBareSymbolRef();
+  }];
+}
+
 let Predicates = [HasNonStdExtPulp],
     hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
   def LP_STARTI : RVInstI<0b000, RISCVOpcode<0b1111011>, (outs),
@@ -558,8 +571,8 @@ let Predicates = [HasNonStdExtPulp],
   }
 
   def LP_SETUPI : RVInstI<0b101, RISCVOpcode<0b1111011>, (outs),
-                          (ins uimm1:$L, uimm5:$imm5, uimm13_lsb0:$imm12),
-                          "lp.setupi", "$L, $imm5, $imm12">,
+                          (ins uimm1:$L, uimm12:$imm12, uimm6_lsb0:$imm5),
+                          "lp.setupi", "$L, $imm12, $imm5">,
                           Sched<[WriteCSR, WriteCSR, WriteCSR]> {
     bit L;
     bits<5> imm5;
@@ -569,6 +582,25 @@ let Predicates = [HasNonStdExtPulp],
     let rd{0} = L;
   }
 }
+
+let Predicates = [HasNonStdExtPulp],
+    hasSideEffects = 1, mayLoad = 1, mayStore = 1 in {
+  let isBranch = 1, isTerminator = 1, Size = 0 in
+  def LoopBranch : Pseudo<(outs), (ins uimm5:$op1, uimm5:$op2, uimm13_lsb0:$rs1), []>;
+  let Size = 12 in
+  def LoopIterations : Pseudo<(outs), (ins GPR:$rs1), []>;
+  let Size = 12 in
+  def LoopIterationsImm : Pseudo<(outs), (ins uimm12:$rs1), []>;
+}
+
+def : Pat<(brcond (int_loop_decrement (i32 1)), bb:$loopStart),
+          (LoopBranch 0, 0, bb:$loopStart)>;
+
+def : Pat<(int_set_loop_iterations GPR:$rs1),
+          (LoopIterations GPR:$rs1)>;
+
+def : Pat<(int_set_loop_iterations uimm12:$rs1),
+          (LoopIterationsImm uimm12:$rs1)>;
 
 // Pattern Fragments
 

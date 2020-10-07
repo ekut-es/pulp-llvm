@@ -38,6 +38,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeRISCVTarget() {
   auto PR = PassRegistry::getPassRegistry();
   initializeGlobalISel(*PR);
   initializeRISCVExpandPseudoPass(*PR);
+  initializeRISCVPulpHWLoopsPass(*PR);
 }
 
 static StringRef computeDataLayout(const Triple &TT) {
@@ -129,6 +130,7 @@ public:
   void addPreEmitPass() override;
   void addPreEmitPass2() override;
   void addPreRegAlloc() override;
+  bool addPreISel() override;
 };
 }
 
@@ -174,8 +176,18 @@ void RISCVPassConfig::addPreEmitPass2() {
   // possibility for other passes to break the requirements for forward
   // progress in the LR/SC block.
   addPass(createRISCVExpandPseudoPass());
+  if (TM->getOptLevel() != CodeGenOpt::None) {
+    addPass(createRISCVPulpHWLoopsPass());
+  }
 }
 
 void RISCVPassConfig::addPreRegAlloc() {
   addPass(createRISCVMergeBaseOffsetOptPass());
+}
+
+bool RISCVPassConfig::addPreISel() {
+  if (TM->getOptLevel() != CodeGenOpt::None) {
+    addPass(createHardwareLoopsPass());
+  }
+  return false;
 }

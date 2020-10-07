@@ -351,6 +351,18 @@ unsigned RISCVMCCodeEmitter::getImmOpValue(const MCInst &MI, unsigned OpNo,
       FixupKind = RISCV::fixup_riscv_rvc_jump;
     } else if (MIFrm == RISCVII::InstFormatCB) {
       FixupKind = RISCV::fixup_riscv_rvc_branch;
+    } else {
+      switch (MI.getOpcode()) {
+        case RISCV::LP_STARTI:
+        case RISCV::LP_ENDI:
+        case RISCV::LP_SETUP:
+          FixupKind = RISCV::fixup_riscv_loop_setup_12;
+          break;
+        case RISCV::LP_SETUPI:
+          FixupKind = RISCV::fixup_riscv_loop_setup_5;
+          break;
+        default: break;
+      }
     }
   }
 

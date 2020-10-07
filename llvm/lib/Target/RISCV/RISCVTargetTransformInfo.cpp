@@ -92,3 +92,103 @@ int RISCVTTIImpl::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
   // Prevent hoisting in unknown cases.
   return TTI::TCC_Free;
 }
+
+bool RISCVTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
+                                            AssumptionCache &AC,
+                                            TargetLibraryInfo *LibInfo,
+                                            HardwareLoopInfo &HWLoopInfo) {
+
+  if (!ST->hasNonStdExtPulp()) {
+    return false;
+  }
+
+  if (!SE.hasLoopInvariantBackedgeTakenCount(L)) {
+    return false;
+  }
+
+  const SCEV *BackedgeTakenCount = SE.getBackedgeTakenCount(L);
+  if (isa<SCEVCouldNotCompute>(BackedgeTakenCount)) {
+    return false;
+  }
+
+  const SCEV *TripCountSCEV =
+    SE.getAddExpr(BackedgeTakenCount,
+                  SE.getOne(BackedgeTakenCount->getType()));
+
+  if (SE.getUnsignedRangeMax(TripCountSCEV).getBitWidth() > 32) {
+    return false;
+  }
+
+
+  auto MaybeCall = [this](Instruction &I) {
+    const RISCVTargetLowering *TLI = getTLI();
+    unsigned ISD = TLI->InstructionOpcodeToISD(I.getOpcode());
+    EVT VT = TLI->getValueType(DL, I.getType(), true);
+    if (TLI->getOperationAction(ISD, VT) == TargetLowering::LibCall)
+      return true;
+
+    if (auto *Call = dyn_cast<CallInst>(&I)) {
+      if (isa<IntrinsicInst>(Call)) {
+        if (const Function *F = Call->getCalledFunction())
+          return isLoweredToCall(F);
+      }
+      return true;
+    }
+
+    return false;
+  };
+
+  auto IsHardwareLoopIntrinsic = [](Instruction &I) {
+    if (auto *Call = dyn_cast<IntrinsicInst>(&I)) {
+      switch (Call->getIntrinsicID()) {
+      default:
+        break;
+      case Intrinsic::set_loop_iterations:
+      case Intrinsic::test_set_loop_iterations:
+      case Intrinsic::loop_decrement:
+      case Intrinsic::loop_decrement_reg:
+        return true;
+      }
+    }
+    return false;
+  };
+
+  bool hasInnerHardwareLoop = false;
+
+  auto ScanLoop = [&](Loop *L) {
+    for (auto *BB : L->getBlocks()) {
+      for (auto &I : *BB) {
+        hasInnerHardwareLoop |= IsHardwareLoopIntrinsic(I);
+        if (MaybeCall(I)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+
+  // Visit inner loops.
+  for (auto Inner : *L)
+    if (!ScanLoop(Inner))
+      return false;
+
+  if (!ScanLoop(L))
+    return false;
+
+
+  LLVMContext &C = L->getHeader()->getContext();
+  HWLoopInfo.CounterInReg = false;
+  HWLoopInfo.IsNestingLegal = !hasInnerHardwareLoop;
+  HWLoopInfo.PerformEntryTest = false;
+  HWLoopInfo.CountType = Type::getInt32Ty(C);
+  HWLoopInfo.LoopDecrement = ConstantInt::get(HWLoopInfo.CountType, 1);
+  return true;
+}
+
+bool RISCVTTIImpl::isLoweredToCall(const Function *F) {
+  if (F->getName().startswith("llvm.riscv.pulp"))
+    return false;
+
+  return BaseT::isLoweredToCall(F);
+}

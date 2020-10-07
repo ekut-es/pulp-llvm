@@ -244,6 +244,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v4i8, Expand);
     setOperationAction(ISD::VSELECT, MVT::v2i16, Expand);
     setOperationAction(ISD::VSELECT, MVT::v4i8, Expand);
+    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i1, Custom);
   }
 
   if (Subtarget.hasStdExtA()) {
@@ -990,6 +991,26 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
         DAG.getNode(RISCVISD::FMV_X_ANYEXTW_RV64, DL, MVT::i64, Op0);
     Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, FPConv));
     break;
+  }
+  case ISD::INTRINSIC_W_CHAIN: {
+    switch (N->getConstantOperandVal(1)) {
+    default:
+      llvm_unreachable(
+        "Don't know how to custom type legalize this operation!");
+    case Intrinsic::loop_decrement:
+
+      SDValue Op0 = N->getOperand(0);
+      SDValue Op1 = N->getOperand(1);
+      SDValue Op2 = N->getOperand(2);
+
+      EVT ValueVTs[] = {Subtarget.getXLenVT(), N->getValueType(1)};
+
+      SDValue v = DAG.getNode(N->getOpcode(), SDLoc(N), DAG.getVTList(ValueVTs),
+                              Op0, Op1, Op2);
+      Results.push_back(v);
+      Results.push_back(SDValue(v.getNode(), 1));
+      break;
+    }
   }
   }
 }

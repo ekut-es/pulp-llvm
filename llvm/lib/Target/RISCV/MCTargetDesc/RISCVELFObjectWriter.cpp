@@ -86,6 +86,11 @@ unsigned RISCVELFObjectWriter::getRelocType(MCContext &Ctx,
       return ELF::R_RISCV_CALL;
     case RISCV::fixup_riscv_call_plt:
       return ELF::R_RISCV_CALL_PLT;
+    // temporary dirty hack, because we link with gcc
+    case RISCV::fixup_riscv_loop_setup_12:
+      return 57;
+    case RISCV::fixup_riscv_loop_setup_5:
+      return 58;
     }
   }
 
