@@ -245,6 +245,10 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::VSELECT, MVT::v2i16, Expand);
     setOperationAction(ISD::VSELECT, MVT::v4i8, Expand);
     setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i1, Custom);
+
+    setIndexedLoadAction(ISD::POST_INC, MVT::i8, Legal);
+    setIndexedLoadAction(ISD::POST_INC, MVT::i16, Legal);
+    setIndexedLoadAction(ISD::POST_INC, MVT::i32, Legal);
   }
 
   if (Subtarget.hasStdExtA()) {
@@ -3007,4 +3011,34 @@ RISCVTargetLowering::getRegisterByName(const char *RegName, LLT VT,
     report_fatal_error(Twine("Trying to obtain non-reserved register \"" +
                              StringRef(RegName) + "\"."));
   return Reg;
+}
+
+bool RISCVTargetLowering::getPostIndexedAddressParts(SDNode *N, SDNode *Op,
+                                                     SDValue &Base,
+                                                     SDValue &Offset,
+                                                     ISD::MemIndexedMode &AM,
+                                                     SelectionDAG &DAG) const {
+  if (!Subtarget.hasNonStdExtPulp())
+    return false;
+
+  if (Op->getOpcode() != ISD::ADD)
+    return false;
+
+  if (LoadSDNode *LD = dyn_cast<LoadSDNode>(N)) {
+    Base = LD->getBasePtr();
+  } else if (StoreSDNode *ST = dyn_cast<StoreSDNode>(N)) {
+    Base = ST->getBasePtr();
+  } else {
+    return false;
+  }
+
+  if (Base == Op->getOperand(0)) {
+    Offset = Op->getOperand(1);
+  } else if (Base == Op->getOperand(1)) {
+    Offset = Op->getOperand(0);
+  } else {
+    return false;
+  }
+  AM = ISD::POST_INC;
+  return true;
 }
