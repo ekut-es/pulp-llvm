@@ -218,6 +218,13 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     ReplaceNode(Node, CurDAG->getMachineNode(Opcode, DL, VT, Vec0, Vec1, Imm));
     return;
   }
+  case ISD::INTRINSIC_W_CHAIN: {
+    if (Node->getConstantOperandVal(1) == Intrinsic::loop_decrement) {
+      ReplaceUses(SDValue(Node, 1),
+                  Node->getOperand(0));
+      return;
+    }
+  }
   }
 
   // Select the default instruction.
@@ -248,6 +255,11 @@ bool RISCVDAGToDAGISel::SelectAddrFI(SDValue Addr, SDValue &Base) {
     return true;
   }
   return false;
+}
+
+bool RISCVDAGToDAGISel::SelectLoopDecrement(SDValue LoopDecrement) {
+  return (LoopDecrement->getOpcode() == ISD::INTRINSIC_W_CHAIN &&
+         LoopDecrement->getConstantOperandVal(1) == Intrinsic::loop_decrement);
 }
 
 // Merge an ADDI into the offset of a load/store instruction where possible.

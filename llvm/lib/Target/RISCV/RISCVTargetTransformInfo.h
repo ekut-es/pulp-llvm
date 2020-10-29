@@ -53,6 +53,7 @@ public:
                                 HardwareLoopInfo &HWLoopInfo);
 
   bool isLoweredToCall(const Function *F);
+  bool shouldFavorPostInc() const;
 };
 
 } // end namespace llvm

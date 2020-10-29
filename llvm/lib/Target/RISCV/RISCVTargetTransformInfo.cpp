@@ -135,6 +135,9 @@ bool RISCVTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
       return true;
     }
 
+    if (VT.isFloatingPoint() && !TLI->isOperationLegalOrCustom(ISD, VT))
+        return true;
+
     return false;
   };
 
@@ -157,7 +160,7 @@ bool RISCVTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
 
   auto ScanLoop = [&](Loop *L) {
     for (auto *BB : L->getBlocks()) {
-      for (auto &I : *BB) {
+      for (auto &I : BB->instructionsWithoutDebug()) {
         hasInnerHardwareLoop |= IsHardwareLoopIntrinsic(I);
         if (MaybeCall(I)) {
           return false;
@@ -191,4 +194,8 @@ bool RISCVTTIImpl::isLoweredToCall(const Function *F) {
     return false;
 
   return BaseT::isLoweredToCall(F);
+}
+
+bool RISCVTTIImpl::shouldFavorPostInc() const {
+  return ST->hasNonStdExtPulp();
 }

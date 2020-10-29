@@ -587,18 +587,23 @@ let Predicates = [HasNonStdExtPulp],
   }
 }
 
-let Predicates = [HasNonStdExtPulp],
-    hasSideEffects = 1, mayLoad = 1, mayStore = 1 in {
-  let isBranch = 1, isTerminator = 1, Size = 0 in
+let Predicates = [HasNonStdExtPulp], isNotDuplicable = 1, hasSideEffects = 1 in {
+  let isBranch = 1, isTerminator = 1, Size = 0, mayLoad = 0, mayStore = 0 in
   def LoopBranch : Pseudo<(outs), (ins uimm5:$op1, uimm5:$op2, uimm13_lsb0:$rs1), []>;
-  let Size = 12 in
-  def LoopIterations : Pseudo<(outs), (ins GPR:$rs1), []>;
-  let Size = 12 in
-  def LoopIterationsImm : Pseudo<(outs), (ins uimm12:$rs1), []>;
+
+  let Size = 12, mayLoad = 1, mayStore = 1 in {
+    def LoopIterations : Pseudo<(outs), (ins GPR:$rs1), []>;
+    def LoopIterationsImm : Pseudo<(outs), (ins uimm12:$rs1), []>;
+  }
 }
 
-def : Pat<(brcond (int_loop_decrement (i32 1)), bb:$loopStart),
-          (LoopBranch 0, 0, bb:$loopStart)>;
+// We need to custom select the loop decrement intrinsic, because tablegen
+// doesn't know that we promoted it to i32
+def loop_decrement_32 : ComplexPattern<i32, 0, "SelectLoopDecrement",
+                                       [intrinsic_w_chain]>;
+
+def : Pat<(brcond (i32 (and (loop_decrement_32), 1)), bb:$branchDest),
+          (LoopBranch 0, 0, bb:$branchDest)>;
 
 def : Pat<(int_set_loop_iterations GPR:$rs1),
           (LoopIterations GPR:$rs1)>;
@@ -631,24 +636,28 @@ def betweenu
 def clip : PatFrag<(ops node:$lowerBound, node:$upperBound, node:$value),
                    (between node:$lowerBound, node:$upperBound, node:$value), [{
 
-  uint32_t bound1 = (uint32_t) N->getOperand(0)->getConstantOperandVal(1);
-  uint32_t bound2 = (uint32_t) N->getConstantOperandVal(1);
-
-  return (bound1 == ~bound2);
+  if (auto bound1 = dyn_cast<ConstantSDNode>(N->getOperand(0)->getOperand(1)))
+    if (auto bound2 = dyn_cast<ConstantSDNode>(N->getOperand(1)))
+      return (bound1->getZExtValue() == ~bound2->getZExtValue());
+  return false;
 }]>;
 
 def shiftRound : PatFrag<(ops node:$value, node:$shiftAmount),
                          (sra (add node:$value, powerOf2),
                               node:$shiftAmount), [{
-  return (N->getOperand(0)->getConstantOperandVal(1) << 1)
-         == (1 << N->getConstantOperandVal(1));
+  if (auto powerOf2 = dyn_cast<ConstantSDNode>(N->getOperand(0)->getOperand(1)))
+    return (powerOf2->getZExtValue() << 1)
+           == (1U << N->getConstantOperandVal(1));
+  return false;
 }]>;
 
 def ushiftRound : PatFrag<(ops node:$value, node:$shiftAmount),
                           (srl (add node:$value, powerOf2),
                                node:$shiftAmount), [{
-  return (N->getOperand(0)->getConstantOperandVal(1) << 1)
-         == (1 << N->getConstantOperandVal(1));
+  if (auto powerOf2 = dyn_cast<ConstantSDNode>(N->getOperand(0)->getOperand(1)))
+    return (powerOf2->getZExtValue() << 1)
+           == (1U << N->getConstantOperandVal(1));
+  return false;
 }]>;
 
 def roundBit : PatFrag<(ops node:$shiftAmount),
@@ -695,7 +704,7 @@ def shiftedMask_shiftImmediate : PatFrag<(ops node:$widthMinus1, node:$flippedMa
                                               node:$flippedMask), [{
   uint32_t shiftedBit = (uint32_t) N->getOperand(0)->getConstantOperandVal(0);
   uint32_t flippedMask = (uint32_t) N->getConstantOperandVal(1);
-  return (2 << countTrailingZeros(flippedMask)) == shiftedBit;
+  return (2U << countTrailingZeros(flippedMask)) == shiftedBit;
 }]>;
 
 
