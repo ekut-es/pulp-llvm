@@ -3095,3 +3095,16 @@ bool RISCVTargetLowering::getPostIndexedAddressParts(SDNode *N, SDNode *Op,
   AM = ISD::POST_INC;
   return true;
 }
+
+bool RISCVTargetLowering::allowsMisalignedMemoryAccesses(
+       EVT VT, unsigned AddrSpace = 0, unsigned Align = 1,
+       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+       bool *Fast = nullptr) const {
+  if(Subtarget.hasNonStdExtPulp()) {
+    if (Fast) {
+      *Fast = false;
+    }
+    return true;
+  }
+  return false;
+}
