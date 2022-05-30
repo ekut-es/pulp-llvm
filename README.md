@@ -1,3 +1,8 @@
+This project has been archived. The relevant patches have been integrated into the pulp and corev llvm projects:
+- https://github.com/pulp-platform/llvm-project
+- https://github.com/openhwgroup/corev-llvm-project
+
+
 # The LLVM Compiler Infrastructure
 
 This directory and its sub-directories contain source code for LLVM,
